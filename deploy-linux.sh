@@ -153,12 +153,13 @@ if [[ ! -f $release/.ready ]]; then
   [[ -f $stage/server-config.js && -f $stage/package-lock.json ]] || die 'GitHub 上尚未包含服务器版代码，请先提交并推送。'
   chown -R "$account:$service_group" "$stage"
   chmod 755 "$root" "$work"
-  as_service() { runuser -u "$account" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$data/browsers" DOWNLOAD_ANY_TOOLS_DIR="$data/tools" "$@"; }
-  (cd "$stage" && as_service "$root/runtime/bin/npm" ci --omit=dev --no-audit --no-fund)
+  # The caller may be in /root or another home the service account cannot traverse.
+  as_service() { (cd "$stage" && runuser -u "$account" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$data/browsers" DOWNLOAD_ANY_TOOLS_DIR="$data/tools" "$@"); }
+  as_service "$root/runtime/bin/npm" ci --omit=dev --no-audit --no-fund
   "$node" "$stage/node_modules/playwright-core/cli.js" install-deps chromium
   as_service "$node" "$stage/node_modules/playwright-core/cli.js" install chromium --no-shell
   as_service "$node" -e 'require(process.argv[1]).ensureBilibiliTools({onLog:console.log}).catch(e=>{console.error(e.message);process.exitCode=1})' "$stage/download-tools.js"
-  (cd "$stage" && as_service "$root/runtime/bin/npm" test)
+  as_service "$root/runtime/bin/npm" test
   as_service "$node" "$stage/start.js" --check
   touch "$stage/.ready"
   chown -R root:root "$stage"
@@ -171,7 +172,7 @@ if (( has_parameters )) || [[ ! -f $data/server.json ]]; then
   else
     address=${deploy_address:-${SERVER_ADDRESS:-$(curl -4fsS --connect-timeout 5 --max-time 10 https://api.ipify.org || true)}}
     [[ -n $address ]] || die '无法检测公网 IP，请设置 SERVER_ADDRESS=服务器IP 后重试。'
-    if [[ $address == *:* && $address != \[*\] ]]; then address=[$address]; fi
+    if [[ $address == *:* && $address != "["* ]]; then address="[$address]"; fi
     export DOWNLOAD_ANY_PUBLIC_URL=http://$address:$DOWNLOAD_ANY_PORT
   fi
   default_bind=0.0.0.0
