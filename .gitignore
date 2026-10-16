@@ -1,0 +1,20 @@
+.DS_Store
+._*
+
+# 下载产物
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.flv
+*.m4v
+*.part
+*.download
+
+# 本地依赖、日志和配置
+node_modules/
+*.log
+.env
+.env.*
+!.env.example
