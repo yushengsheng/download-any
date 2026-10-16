@@ -225,9 +225,12 @@ test("缓存锁防止多实例互删，下载中的文件不会被过期清理�
   const orphan = await cache.create(randomUUID());
   await fs.writeFile(path.join(orphan.directory, "source.mp4"), "orphan");
   await cache.close();
+  await assert.rejects(fs.stat(orphan.directory), { code: "ENOENT" }, "正常退出立即释放剩余任务文件");
+  const crashed = path.join(mode.cacheDir, randomUUID());
+  await fs.mkdir(crashed); await fs.writeFile(path.join(crashed, "partial.mp4"), "abnormal exit");
   const restarted = new ServerCache(mode); await restarted.init();
   t.after(() => restarted.close());
-  await assert.rejects(fs.stat(orphan.directory), { code: "ENOENT" });
+  await assert.rejects(fs.stat(crashed), { code: "ENOENT" });
   assert.equal(await fs.readFile(untouched, "utf8"), "preserve");
 });
 
@@ -349,6 +352,25 @@ test("服务器缓存满后拒绝新任务，旧结果仍能下载和清除，�
   assert.equal((await session.post("/api/clear-job", { id: first.id })).status, 200);
   await session.post("/api/jobs", { input: "https://www.douyin.com/video/123" });
   assert.equal((await waitJob(app, session.cookie)).status, "completed");
+});
+
+test("停止服务会关闭正在传输的文件、清理剩余临时结果并释放缓存锁", async t => {
+  const mode = await serverOptions(t, { maxFileBytes: 32 * 1024 * 1024 });
+  const app = await startServer({ serverMode: mode, download: async (_input, options) => {
+    await fs.mkdir(options.outputDir, { recursive: true });
+    const file = path.join(options.outputDir, "video.mp4");
+    await fs.writeFile(file, Buffer.alloc(16 * 1024 * 1024));
+    return { file, filename: "video.mp4", bytes: 16 * 1024 * 1024 };
+  } });
+  t.after(() => app.close());
+  const session = await login(app);
+  await session.post("/api/jobs", { input: "https://www.douyin.com/video/123" });
+  const job = await waitJob(app, session.cookie);
+  const response = await fetch(`${app.url}/api/file?id=${job.id}`, { headers: { Cookie: session.cookie } });
+  const reader = response.body.getReader(); await reader.read();
+  try { await app.close(); } finally { await reader.cancel().catch(() => {}); }
+  await assert.rejects(fs.stat(job.result.file), { code: "ENOENT" });
+  await assert.rejects(fs.stat(path.join(mode.cacheDir, ".lock")), { code: "ENOENT" });
 });
 
 const mediaTools = { ffmpeg: findExecutable("ffmpeg", process.env.FFMPEG_PATH), ffprobe: findExecutable("ffprobe", process.env.FFPROBE_PATH) };

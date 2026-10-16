@@ -101,7 +101,13 @@ class ServerCache {
     if (!this.lockId) return;
     try {
       const previous = JSON.parse(await fs.readFile(this.lockFile, "utf8"));
-      if (previous.id === this.lockId) await fs.unlink(this.lockFile);
+      if (previous.id === this.lockId) {
+        for (const id of this.entries.keys()) {
+          if (!await this.remove(id)) throw new Error("仍有临时文件正在传输或清理，无法释放缓存锁。");
+        }
+        await fs.unlink(this.lockFile);
+        this.lockId = null;
+      }
     } catch (error) { if (error.code !== "ENOENT") throw error; }
   }
 }
