@@ -18,3 +18,13 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# 本地运行和验证产物
+downloads/
+output/
+.playwright-cli/
+.download-any.json
+.download-any.json.*.tmp
+.tools/
+.download-any-*/
+.server-data/

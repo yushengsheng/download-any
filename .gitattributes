@@ -1,0 +1,13 @@
+* text=auto
+*.js text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+.gitattributes text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.plist text eol=lf
+*.sh text eol=lf
+*.command text eol=lf
+*.cmd text eol=crlf
+抖音视频下载.app/Contents/MacOS/applet text eol=lf

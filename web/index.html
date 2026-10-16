@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download Any · 视频下载</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <a class="brand" href="/" aria-label="Download Any 首页"><span class="mark" aria-hidden="true">↓</span> Download Any<span class="local">本地版</span></a>
+      <div class="header-actions"><span id="connection" class="connection" role="status">正在连接…</span><button id="logout" class="secondary" type="button" hidden>退出登录</button></div>
+    </header>
+    <nav class="page-nav" aria-label="功能页面"><a href="/" data-nav="download">视频下载</a><a href="/toolbox" data-nav="toolbox">视频工具箱</a></nav>
+    <section class="intro" data-page="download">
+      <p class="eyebrow">把喜欢的视频，留在本地</p>
+      <h1>粘贴链接，<br>视频即刻保存。</h1>
+      <p class="subtitle">自动识别抖音和 B 站。分享短链接、网页视频地址或整段分享文案，都可以直接粘贴。</p>
+    </section>
+    <section class="intro" data-page="toolbox" hidden>
+      <p class="eyebrow">视频工具箱 · 音画分离</p>
+      <h1>一段视频，<br>画面、声音各自保存。</h1>
+      <p class="subtitle">将本地视频分离为一个纯画面文件和一个独立音频文件，保留原始编码与质量。</p>
+    </section>
+    <section class="panel" aria-label="文件处理">
+      <form id="download-form" data-page="download">
+        <label for="video-input">视频链接或分享文案</label>
+        <textarea id="video-input" name="input" rows="4" maxlength="12000" placeholder="粘贴抖音 / B 站视频链接，或包含链接的整段分享文案" required></textarea>
+        <div class="form-footer"><span id="download-note">视频直接保存到你的电脑</span><button id="download-button" type="submit" disabled>开始下载 <span aria-hidden="true">↗</span></button></div>
+      </form>
+      <form id="split-form" data-page="toolbox" hidden>
+        <div data-local><label for="source-file">本地视频文件</label><div class="file-input-row"><input id="source-file" type="text" maxlength="4096" placeholder="选择视频，或粘贴文件的完整路径" autocomplete="off" required><button id="choose-video" class="secondary" type="button" disabled>选择视频</button></div></div>
+        <div data-server hidden><label for="upload-file">选择电脑上的视频</label><input id="upload-file" type="file" accept="video/*,.mkv,.avi,.ts,.m2ts,.mts,.wmv,.flv,.m4v,.rmvb,.vob"><p id="upload-limit" class="directory-hint"></p></div>
+        <div id="upload-status" hidden><p id="upload-text" class="directory-hint" role="status"></p><button id="cancel-upload" class="secondary" type="button">取消上传</button></div>
+        <p class="format-hint">支持 MP4、MOV、MKV、AVI、WebM、FLV、TS、WMV、3GP 等常见格式，导出格式自动匹配。</p>
+        <div class="split-outputs"><div><span aria-hidden="true">▣</span><strong>画面文件</strong><small>只保留画面，无声音</small></div><div><span aria-hidden="true">♫</span><strong>音频文件</strong><small>只保留声音，无画面</small></div></div>
+        <div class="form-footer"><span id="split-note">仅在本机处理，原视频保留</span><button id="split-button" type="submit" disabled>开始分离 <span aria-hidden="true">↗</span></button></div>
+      </form>
+      <p id="message" class="message" role="alert" hidden></p>
+      <div class="destination"><div><span class="small-label">保存位置</span><code id="output-dir">正在读取…</code></div><div class="destination-actions" data-local><button id="change-directory" class="secondary" type="button" disabled>更改目录</button><button id="open-folder" class="secondary" type="button" disabled>打开文件夹</button></div></div>
+      <p id="directory-status" class="directory-hint" role="status">自动记住保存位置，下次打开继续使用。</p>
+    </section>
+    <section class="downloads" aria-label="任务记录">
+      <div class="section-heading"><h2 id="jobs-title">本次下载</h2><span id="job-count">0 个任务</span></div>
+      <p id="empty-state" class="empty">还没有下载记录，粘贴一个视频链接开始吧。</p>
+      <div id="jobs" aria-live="polite"></div>
+    </section>
+    <footer><span id="footer-note">文件在本地 · 目录可自由移动</span><span id="browser-info">正在检查浏览器…</span></footer>
+  </main>
+  <dialog id="directory-dialog" aria-labelledby="directory-title">
+    <form id="directory-form">
+      <h2 id="directory-title">更改保存目录</h2>
+      <label for="directory-input">文件夹路径</label>
+      <div class="directory-input-row"><input id="directory-input" type="text" maxlength="4096" autocomplete="off" required><button id="browse-directory" class="secondary" type="button">浏览文件夹</button></div>
+      <p class="directory-hint">可以浏览选择或直接输入路径，保存后会自动记住。</p>
+      <p id="directory-message" class="message" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="reset-directory" class="secondary" type="button">恢复默认</button><div><button id="cancel-directory" class="secondary" type="button">取消</button><button id="save-directory" type="submit">保存目录</button></div></div>
+    </form>
+  </dialog>
+</body>
+</html>

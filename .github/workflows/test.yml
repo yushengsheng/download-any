@@ -1,0 +1,71 @@
+name: Linux validation
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg shellcheck
+      - run: npm ci --no-audit --no-fund
+      - run: node node_modules/playwright-core/cli.js install --with-deps chromium --no-shell
+      - run: bash -n deploy-linux.sh
+      - run: shellcheck deploy-linux.sh launch.sh download_douyin.sh 双击运行下载.command 抖音视频下载.app/Contents/MacOS/applet
+      - run: npm test
+      - run: npm run check
+  deployment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy, update password and recover from a failed restart
+        shell: bash
+        env:
+          INSTALL_DIR: '/opt/download-any validation $data %1'
+          SERVICE_NAME: download-any-ci
+          SERVICE_USER: download-any-ci
+          REPO_URL: https://github.com/${{ github.repository }}.git
+          BRANCH: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          deploy() { sudo env INSTALL_DIR="$INSTALL_DIR" SERVICE_NAME="$SERVICE_NAME" SERVICE_USER="$SERVICE_USER" REPO_URL="$REPO_URL" BRANCH="$BRANCH" "$@" bash deploy-linux.sh "${ADDRESS:-127.0.0.1}" "${PORT:-18686}" "$PASSWORD"; }
+          check_login() {
+            "$INSTALL_DIR/runtime/bin/node" -e '
+              const assert = require("node:assert/strict");
+              fetch(process.argv[1] + "/api/login", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({password:process.argv[2]})})
+                .then(r => assert.equal(r.status, Number(process.argv[3]))).catch(e => {console.error(e); process.exitCode=1});
+            ' "$1" "$2" "$3"
+          }
+          PASSWORD='CI-Initial-Password-2026!'
+          deploy
+          check_login http://127.0.0.1:18686 "$PASSWORD" 200
+          PASSWORD='CI-Updated-Password-2026!'
+          ADDRESS=::1 PORT=18687 deploy
+          check_login 'http://[::1]:18687' "$PASSWORD" 200
+          check_login 'http://[::1]:18687' 'CI-Initial-Password-2026!' 401
+          if ADDRESS=127.0.0.1 PORT=18688 deploy BIND_HOST=203.0.113.10; then
+            echo 'Expected deployment to fail on an unavailable listening address' >&2
+            exit 1
+          fi
+          check_login 'http://[::1]:18687' "$PASSWORD" 200
+          sudo systemctl is-active --quiet "$SERVICE_NAME"
+      - name: Print service diagnostics
+        if: failure()
+        run: sudo journalctl -u download-any-ci -n 100 --no-pager
+      - name: Stop validation service
+        if: always()
+        run: sudo systemctl stop download-any-ci || true

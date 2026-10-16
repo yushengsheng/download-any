@@ -1,0 +1,134 @@
+{
+  "win32-x64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
+      "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a",
+      "size": 17840399
+    },
+    "ffmpeg": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64.gz",
+      "sha256": "04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00",
+      "size": 82797568,
+      "gzip": true
+    },
+    "ffprobe": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-win32-x64.gz",
+      "sha256": "3a7e2dc003dc2cd1472827e4c7c4f056ae1ae0ae7c5bbc580c99b49827351ba4",
+      "size": 82668032,
+      "gzip": true
+    }
+  },
+  "win32-arm64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_arm64.exe",
+      "sha256": "05b438997bafc3affdfda9d041353c9d73e04dc842207254b655b0887c4445b0",
+      "size": 21159286
+    },
+    "ffmpeg": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64.gz",
+      "sha256": "04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00",
+      "size": 82797568,
+      "gzip": true
+    },
+    "ffprobe": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-win32-x64.gz",
+      "sha256": "3a7e2dc003dc2cd1472827e4c7c4f056ae1ae0ae7c5bbc580c99b49827351ba4",
+      "size": 82668032,
+      "gzip": true
+    }
+  },
+  "darwin-x64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_macos",
+      "sha256": "0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202",
+      "size": 37146048
+    },
+    "ffmpeg": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-darwin-x64.gz",
+      "sha256": "ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894",
+      "size": 78862176,
+      "gzip": true
+    },
+    "ffprobe": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-darwin-x64.gz",
+      "sha256": "fa3add0ce901f7241abe0dfc0155d958fc834aca3f8ce61f87cc712ae669c1e0",
+      "size": 78780408,
+      "gzip": true
+    }
+  },
+  "darwin-arm64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_macos",
+      "sha256": "0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202",
+      "size": 37146048
+    },
+    "ffmpeg": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-darwin-arm64.gz",
+      "sha256": "a90e3db6a3fd35f6074b013f948b1aa45b31c6375489d39e572bea3f18336584",
+      "size": 45568216,
+      "gzip": true
+    },
+    "ffprobe": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-darwin-arm64.gz",
+      "sha256": "bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64",
+      "size": 45528808,
+      "gzip": true
+    }
+  },
+  "linux-x64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_linux",
+      "sha256": "58162f9bfdc27458ea47bfcb311cf47028f17d8154a8bf7d689861d46399230a",
+      "size": 40446224
+    },
+    "ffmpeg": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-linux-x64.gz",
+      "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99",
+      "size": 79826272,
+      "gzip": true
+    },
+    "ffprobe": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-linux-x64.gz",
+      "sha256": "4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d",
+      "size": 79665792,
+      "gzip": true
+    }
+  },
+  "linux-arm64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_linux_aarch64",
+      "sha256": "b16e4dab368a816cd05d477d698a605a6ae87ccee1c8ffd38fa21d7254141fcc",
+      "size": 40167448
+    },
+    "ffmpeg": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-linux-arm64.gz",
+      "sha256": "6bb182d0d75d23028db82e9e4f723ca69b853d055698486e6984ddb2c06fb8ce",
+      "size": 51134160,
+      "gzip": true
+    },
+    "ffprobe": {
+      "version": "b6.1.1",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-linux-arm64.gz",
+      "sha256": "d17ae9b4c297d48e2521ba14e417bb0537c6ff77c584cdbcd6bb0d8d0307a2e8",
+      "size": 50994160,
+      "gzip": true
+    }
+  }
+}
