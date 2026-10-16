@@ -10,13 +10,13 @@ function validateConfig(value, file) {
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new Error("publicUrl 必须是完整的 HTTP(S) 访问地址，不包含路径或密码。");
   if (!Number.isInteger(value.port) || value.port < 1 || value.port > 65535) throw new Error("服务器端口须在 1～65535 之间。");
   if (value.bind !== undefined && (typeof value.bind !== "string" || !isIP(value.bind))) throw new Error("bind 必须是有效的监听 IP 地址。");
-  for (const [name, fallback, minimum, maximum] of [["retentionHours", 2, 0.1, 168], ["maxFileMiB", 2048, 1, 20480], ["maxCacheMiB", 10240, 64, 1024000]]) {
+  for (const [name, fallback, minimum, maximum] of [["retentionHours", 2, 0.1, 168], ["downloadedRetentionMinutes", 5, 0, 60], ["maxFileMiB", 2048, 1, 20480], ["maxCacheMiB", 10240, 64, 1024000]]) {
     value[name] ??= fallback;
     if (typeof value[name] !== "number" || !Number.isFinite(value[name]) || value[name] < minimum || value[name] > maximum) throw new Error(`${name} 配置不正确。`);
   }
   const dataDir = path.resolve(path.dirname(file), value.dataDir || ".");
   return { ...value, publicUrl: url.origin, bind: value.bind || "0.0.0.0", dataDir,
-    cacheDir: path.join(dataDir, "cache"), retentionMs: value.retentionHours * 3600000,
+    cacheDir: path.join(dataDir, "cache"), retentionMs: value.retentionHours * 3600000, downloadedRetentionMs: value.downloadedRetentionMinutes * 60000,
     maxFileBytes: Math.floor(value.maxFileMiB * 1024 * 1024), maxCacheBytes: Math.floor(value.maxCacheMiB * 1024 * 1024) };
 }
 

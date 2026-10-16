@@ -71,6 +71,7 @@ curl -fL --connect-timeout 20 --max-time 120 --retry 2 https://raw.githubusercon
 - 上传文件处理完毕即删除；失败或取消时清理本次临时任务。
 - 工具箱只接收常见视频容器，拒绝 HLS/concat 等外部引用播放列表，禁止借上传文件读取任意服务器路径。
 - 成功结果默认保留 **2 小时**，到期后每分钟清理；正在传输的文件等待传输结束再删。
+- 结果完整传给浏览器后，保留时间缩短为 **5 分钟**，供浏览器保存失败时重试，之后在每分钟的清理任务中自动删除。音画分离等画面、音频两个文件都完整传完后才开始缩短期限；HTTP 断点续传会合并已完成的范围，中断的请求不算完成。重复下载不无限延长占用。
 - 页面可手动清除已保存的服务器结果。结果到期后需要重新下载或重新上传处理。
 - 服务启动时清理专用缓存中的旧任务，防止异常退出遗留视频。其他目录与非任务文件不删除。
 - 默认单个输入最大 **2 GiB**，总结果缓存 **10 GiB**，最多保留 20 个任务；一次处理一个任务。空间紧张时会降低当前任务上限或拒绝任务，不删除尚未过期的结果来腾空间。
@@ -104,7 +105,7 @@ unset NEW_PASSWORD
 sudo systemctl restart download-any
 ```
 
-配置文件 `data/server.json` 可调整 `port`、`bind`、`publicUrl`、`retentionHours`、`maxFileMiB`、`maxCacheMiB`，修改后重启。`publicUrl` 必须与浏览器实际访问的地址一致（含端口），否则来源检查会拒绝请求。更换端口后另行放行对应安全组/防火墙端口。不要将包含密码哈希的配置提交到 Git。
+配置文件 `data/server.json` 可调整 `port`、`bind`、`publicUrl`、`retentionHours`、`downloadedRetentionMinutes`、`maxFileMiB`、`maxCacheMiB`，修改后重启。`downloadedRetentionMinutes` 默认 5，可设为 0～60 分钟；0 表示完整传输后进入下一次清理，正在传输的文件仍受保护。浏览器收到完整数据不代表本机磁盘一定保存成功，建议保留默认的重试时间。`publicUrl` 必须与浏览器实际访问的地址一致（含端口），否则来源检查会拒绝请求。更换端口后另行放行对应安全组/防火墙端口。不要将包含密码哈希的配置提交到 Git。
 
 ## HTTP 与 HTTPS
 

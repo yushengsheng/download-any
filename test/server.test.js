@@ -85,6 +85,7 @@ test("服务器配置记住密码哈希和参数，可从其他目录启动，�
   assert.deepEqual(second.credentials, first.credentials);
   assert.equal(second.port, 8686);
   assert.equal(second.retentionMs, 7200000);
+  assert.equal(second.downloadedRetentionMs, 300000);
   assert.ok(!(await fs.readFile(configFile, "utf8")).includes(password));
 });
 
@@ -242,6 +243,78 @@ test("缓存配额限制当前任务，不会通过删除未过期结果来腾�
   assert.equal(await fs.readFile(path.join(first.directory, "keep.mp4"), "utf8"), "keep");
   await cache.remove(firstId);
   assert.ok((await cache.create(randomUUID())).maxBytes > 0);
+});
+
+test("完整传输所有音画文件后缩短缓存期限，断点范围合并、重试和传输中的清理保持安全", async t => {
+  let now = 1000;
+  const mode = await serverOptions(t, { now: () => now, downloadedRetentionMs: 5000 });
+  const cache = new ServerCache(mode); await cache.init(); t.after(() => cache.close());
+  const id = randomUUID(); await cache.create(id);
+  const originalExpiry = await cache.finish(id, 20, ["video", "audio"]);
+  assert.equal(cache.recordDelivery(id, "video", 0, 3, 10), undefined);
+  assert.equal(cache.recordDelivery(id, "video", 2, 5, 10), undefined);
+  assert.equal(cache.recordDelivery(id, "audio", 0, 9, 10).complete, false);
+  assert.equal(cache.entries.get(id).expiresAt, originalExpiry);
+  assert.equal(cache.recordDelivery(id, "video", 7, 9, 10), undefined, "缺少的范围不能被当作完整传输");
+  const complete = cache.recordDelivery(id, "video", 6, 6, 10);
+  assert.equal(complete.complete, true);
+  assert.equal(complete.expiresAt, now + 5000);
+  now += 1000;
+  assert.equal(cache.recordDelivery(id, "video", 0, 9, 10), undefined);
+  assert.equal(cache.entries.get(id).expiresAt, complete.expiresAt, "重复下载不无限延长占用");
+  const release = cache.pin(id); assert.ok(release);
+  now += 5000;
+  assert.deepEqual(await cache.sweep(), [], "正在重试传输的文件不可清理");
+  release(); assert.deepEqual(await cache.sweep(), [id]);
+  const boundedId = randomUUID(); await cache.create(boundedId); await cache.finish(boundedId, 2000);
+  for (let index = 0; index < 100; index++) cache.recordDelivery(boundedId, "video", index * 2, index * 2, 2000);
+  assert.ok(cache.entries.get(boundedId).deliveries.get("video").ranges.length <= 64);
+  assert.equal(cache.recordDelivery(boundedId, "video", 0, 1999, 2000).complete, true);
+});
+
+test("浏览器下载中断不触发提前删除，完整下载后仍可重试并按较短期限清理", async t => {
+  let now = 5000;
+  const mode = await serverOptions(t, { now: () => now, downloadedRetentionMs: 5000, maxFileBytes: 32 * 1024 * 1024 });
+  const size = 16 * 1024 * 1024;
+  const app = await startServer({ serverMode: mode, download: async (_input, options) => {
+    await fs.mkdir(options.outputDir, { recursive: true });
+    const file = path.join(options.outputDir, "video.mp4");
+    const handle = await fs.open(file, "wx");
+    try { await handle.truncate(size); } finally { await handle.close(); }
+    return { file, filename: "video.mp4", bytes: size };
+  } });
+  t.after(() => app.close());
+  const session = await login(app);
+  await session.post("/api/jobs", { input: "https://www.douyin.com/video/123" });
+  const job = await waitJob(app, session.cookie);
+  assert.equal(job.status, "completed", job.error);
+  const url = `${app.url}/api/file?id=${job.id}`;
+  const interrupted = await fetch(url, { headers: { Cookie: session.cookie } });
+  const reader = interrupted.body.getReader();
+  await reader.read(); await reader.cancel();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  let state = await (await fetch(`${app.url}/api/state`, { headers: { Cookie: session.cookie } })).json();
+  assert.equal(state.jobs[0].expiresAt, job.expiresAt);
+  assert.equal(state.jobs[0].transferredAt, undefined);
+  const full = await fetch(url, { headers: { Cookie: session.cookie } });
+  assert.equal((await full.arrayBuffer()).byteLength, size);
+  for (let attempt = 0; attempt < 50; attempt++) {
+    state = await (await fetch(`${app.url}/api/state`, { headers: { Cookie: session.cookie } })).json();
+    if (state.jobs[0].transferredAt !== undefined) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(state.jobs[0].transferredAt, now);
+  assert.equal(state.jobs[0].expiresAt, now + 5000);
+  const retry = await fetch(url, { headers: { Cookie: session.cookie, Range: "bytes=0-3" } });
+  assert.equal(retry.status, 206); assert.equal((await retry.arrayBuffer()).byteLength, 4);
+  now += 5001;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    await app.sweep();
+    const exists = await fs.stat(job.result.file).then(() => true, error => { if (error.code === "ENOENT") return false; throw error; });
+    if (!exists) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  await assert.rejects(fs.stat(job.result.file), { code: "ENOENT" });
 });
 
 test("服务器缓存满后拒绝新任务，旧结果仍能下载和清除，清除后可继续处理", async t => {

@@ -8,8 +8,8 @@ const { sanitizeFilename } = require("./media-file");
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 class ServerCache {
-  constructor({ cacheDir, retentionMs, maxFileBytes, maxCacheBytes, now = Date.now }) {
-    Object.assign(this, { root: path.resolve(cacheDir), retentionMs, maxFileBytes, maxCacheBytes, now });
+  constructor({ cacheDir, retentionMs, downloadedRetentionMs = 300000, maxFileBytes, maxCacheBytes, now = Date.now }) {
+    Object.assign(this, { root: path.resolve(cacheDir), retentionMs, downloadedRetentionMs, maxFileBytes, maxCacheBytes, now });
     this.entries = new Map();
   }
   async init() {
@@ -44,13 +44,37 @@ class ServerCache {
     this.entries.set(id, { directory, bytes: 0, readers: 0, expiresAt: Infinity });
     return { directory, maxBytes };
   }
-  async finish(id, bytes) {
+  async finish(id, bytes, parts = ["video"]) {
     const entry = this.entries.get(id);
     if (!entry) return;
     if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > this.maxCacheBytes) throw new Error("处理结果超出服务器缓存限制。");
     entry.bytes = bytes;
+    entry.pendingParts = new Set(parts);
+    entry.deliveries = new Map();
     entry.expiresAt = this.now() + this.retentionMs;
     return entry.expiresAt;
+  }
+  recordDelivery(id, part, start, end, size) {
+    const entry = this.entries.get(id);
+    if (!entry?.pendingParts?.has(part)) return;
+    const previous = entry.deliveries.get(part);
+    const ranges = previous?.size === size ? previous.ranges : [];
+    const merged = [];
+    for (const range of [...ranges, [start, end]].sort((a, b) => a[0] - b[0])) {
+      const last = merged.at(-1);
+      if (last && range[0] <= last[1] + 1) last[1] = Math.max(last[1], range[1]);
+      else merged.push([...range]);
+    }
+    // Bound bookkeeping for clients issuing many disjoint Range requests.
+    entry.deliveries.set(part, { size, ranges: merged.slice(0, 64) });
+    if (merged.length !== 1 || merged[0][0] !== 0 || merged[0][1] !== size - 1) return;
+    entry.pendingParts.delete(part);
+    entry.deliveries.delete(part);
+    if (!entry.pendingParts.size) {
+      entry.transferredAt = this.now();
+      entry.expiresAt = Math.min(entry.expiresAt, entry.transferredAt + this.downloadedRetentionMs);
+    }
+    return { complete: !entry.pendingParts.size, transferredAt: entry.transferredAt, expiresAt: entry.expiresAt };
   }
   pin(id) {
     const entry = this.entries.get(id);

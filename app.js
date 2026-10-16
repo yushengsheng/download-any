@@ -93,7 +93,7 @@ async function startServer({ outputDir, settingsFile = defaultSettingsFile, down
       });
       if (cache) {
         await fsp.rm(path.join(config.directory, "input"), { recursive: true, force: true });
-        job.expiresAt = await cache.finish(job.id, result.files ? result.files.reduce((sum, file) => sum + file.bytes, 0) : result.bytes);
+        job.expiresAt = await cache.finish(job.id, result.files ? result.files.reduce((sum, file) => sum + file.bytes, 0) : result.bytes, result.files?.map(file => file.kind));
       }
       return result;
     }).then(result => { job.result = result; job.status = "completed"; })
@@ -141,7 +141,7 @@ async function startServer({ outputDir, settingsFile = defaultSettingsFile, down
         await sweep();
         return json(response, 200, { token: session?.token || token, serverMode: Boolean(serverMode),
           outputDir: serverMode ? undefined : outputDir, defaultDir: serverMode ? undefined : defaultDir,
-          retentionMs: serverMode?.retentionMs, maxUploadBytes: serverMode?.maxFileBytes,
+          retentionMs: serverMode?.retentionMs, downloadedRetentionMs: cache?.downloadedRetentionMs, maxUploadBytes: serverMode?.maxFileBytes,
           directoryError, directoryWarning, browsers, jobs });
       }
       if (request.method === "GET" && url.pathname === "/api/file") {
@@ -168,6 +168,9 @@ async function startServer({ outputDir, settingsFile = defaultSettingsFile, down
           "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`
         });
         await pipeline(fs.createReadStream(file.file, { start, end }), response);
+        const delivery = cache?.recordDelivery(job.id, file.kind || "video", start, end, stat.size);
+        if (delivery) file.transferred = true;
+        if (delivery?.complete) { job.transferredAt = delivery.transferredAt; job.expiresAt = delivery.expiresAt; }
         return;
         } finally { unpin?.(); }
       }

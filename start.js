@@ -39,7 +39,7 @@ async function main() {
   }
   const app = await require("./app").startServer({ serverMode });
   console.log(`下载工具已启动：${serverMode?.publicUrl || app.url}`);
-  console.log(serverMode ? `服务器临时文件保留 ${serverMode.retentionHours} 小时，结果请保存到你的电脑。` : `视频保存到：${getDownloadDir()}`);
+  console.log(serverMode ? `未下载结果最长保留 ${serverMode.retentionHours} 小时；全部传输后 ${serverMode.downloadedRetentionMinutes} 分钟清理，请保存到你的电脑。` : `视频保存到：${getDownloadDir()}`);
   console.log("使用期间请保留此窗口，按 Ctrl+C 退出。");
   if (!serverMode && !args.includes("--no-open")) {
     try { await openPath(app.url); } catch { console.log(`无法自动打开浏览器，请手动访问：${app.url}`); }

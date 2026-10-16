@@ -116,7 +116,7 @@ function renderJobs(jobs) {
       card.append(link);
     }
     if (serverMode && job.result) {
-      card.append(element("p", `请保存到你的设备，临时文件将在 ${new Date(job.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} 清理。`));
+      card.append(element("p", `${job.transferredAt !== undefined ? "全部文件已传输，仍可重试下载" : "请将全部结果保存到你的设备"}；临时文件将在 ${new Date(job.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} 清理。`));
       const clear = element("button", "清除服务器临时文件", "secondary");
       clear.type = "button";
       clear.addEventListener("click", async () => {
@@ -163,7 +163,7 @@ async function refreshState() {
     directoryUnavailable = Boolean(state.directoryError);
     document.querySelector("#output-dir").textContent = serverMode ? "你的设备 · 浏览器下载目录" : outputDir;
     const directoryStatus = document.querySelector("#directory-status");
-    directoryStatus.textContent = state.directoryError || state.directoryWarning || (serverMode ? `服务器临时文件保留 ${state.retentionMs / 3600000} 小时。可在浏览器设置中开启“下载前询问保存位置”。` : "自动记住保存位置，下次打开继续使用。");
+    directoryStatus.textContent = state.directoryError || state.directoryWarning || (serverMode ? `结果最长保留 ${state.retentionMs / 3600000} 小时，全部传输后 ${state.downloadedRetentionMs / 60000} 分钟清理。可在浏览器设置中开启“下载前询问保存位置”。` : "自动记住保存位置，下次打开继续使用。");
     directoryStatus.classList.toggle("error", directoryUnavailable);
     document.querySelector("#browser-info").textContent = isToolbox ? "音画分离 · 保留原始质量" : state.browsers[0] || "解析浏览器将在下载抖音时按需安装";
     folder.disabled = directoryUnavailable;

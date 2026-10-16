@@ -230,7 +230,7 @@ for candidate in "$root"/releases/*; do
   [[ -d $candidate && ! -L $candidate && -f $candidate/.ready && ${candidate##*/} =~ ^[a-f0-9]{40}$ ]] || continue
   [[ $candidate == "$release" || $candidate == "$old" ]] || rm -rf -- "$candidate"
 done
-printf '\n部署成功：%s\n临时文件默认保留 2 小时，结果由浏览器保存到访问者设备。\n' "$public_url"
+printf '\n部署成功：%s\n未下载结果默认最长保留 2 小时，全部传输后 5 分钟清理；结果由浏览器保存到访问者设备。\n' "$public_url"
 if (( has_password )); then printf '%s\n' '访问密码：使用你本次设置的自定义密码。'; fi
 printf '请在云服务器安全组放行 TCP %s。查看运行状态：systemctl status %s\n' "$port" "$service"
 printf '%s\n' "更新并保留设置：sudo bash deploy-linux.sh" "修改 IP、端口或密码：sudo bash deploy-linux.sh 公网IP 端口 '自定义密码'"
