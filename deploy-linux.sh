@@ -95,6 +95,14 @@ activated=0
 had_config=0
 [[ ! -f $data/server.json ]] || { cp -- "$data/server.json" "$work/previous-config.json"; had_config=1; }
 [[ ! -f $unit ]] || cp -- "$unit" "$work/previous.service"
+wait_healthy() {
+  local health_port=$1 attempt
+  for ((attempt=0; attempt<30; attempt++)); do
+    if systemctl is-active --quiet "$service" && curl -fsS --max-time 2 "http://127.0.0.1:$health_port/healthz" >/dev/null 2>&1; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
 cleanup() {
   status=$?
   trap - EXIT
@@ -105,8 +113,13 @@ cleanup() {
       mv -Tf -- "$work/rollback" "$root/current"
       [[ ! -f $work/previous.service ]] || cp -- "$work/previous.service" "$unit"
       systemctl daemon-reload
-      systemctl restart "$service" || true
-      printf '%s\n' '已恢复上一版本，请查看上方错误后重试。' >&2
+      local rollback_port
+      rollback_port=$("$node" -e 'console.log(require(process.argv[1]).port)' "$data/server.json")
+      if systemctl restart "$service" && wait_healthy "$rollback_port"; then
+        printf '%s\n' '已恢复上一版本并通过健康检查，请查看上方错误后重试。' >&2
+      else
+        printf '%s\n' '已切回上一版本，但服务尚未恢复，请使用 systemctl status 和 journalctl 检查。' >&2
+      fi
     elif (( activated )); then systemctl stop "$service" || true; fi
   fi
   # work is created by mktemp strictly inside this managed install root.
@@ -154,7 +167,7 @@ if [[ ! -f $release/.ready ]]; then
   chown -R "$account:$service_group" "$stage"
   chmod 755 "$root" "$work"
   # The caller may be in /root or another home the service account cannot traverse.
-  as_service() { (cd "$stage" && runuser -u "$account" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$data/browsers" DOWNLOAD_ANY_TOOLS_DIR="$data/tools" "$@"); }
+  as_service() { (cd "$stage" && runuser -u "$account" -- env HOME="$data" XDG_CONFIG_HOME="$data/xdg-config" XDG_CACHE_HOME="$data/xdg-cache" PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$data/browsers" DOWNLOAD_ANY_TOOLS_DIR="$data/tools" "$@"); }
   as_service "$root/runtime/bin/npm" ci --omit=dev --no-audit --no-fund
   "$node" "$stage/node_modules/playwright-core/cli.js" install-deps chromium
   as_service "$node" "$stage/node_modules/playwright-core/cli.js" install chromium --no-shell
@@ -198,6 +211,7 @@ quote_unit() { local text=$1; text=${text//\\/\\\\}; text=${text//\"/\\\"}; text
   printf 'ExecStart=:%s %s --server --config %s\n' "$(quote_unit "$node")" "$(quote_unit "$root/current/start.js")" "$(quote_unit "$data/server.json")"
   printf 'Environment=%s\n' "$(quote_unit "PATH=$root/runtime/bin:/usr/local/bin:/usr/bin:/bin")"
   printf 'Environment=%s\n' "$(quote_unit "PLAYWRIGHT_BROWSERS_PATH=$data/browsers")"
+  printf 'Environment=%s\n' "$(quote_unit "HOME=$data")" "$(quote_unit "XDG_CONFIG_HOME=$data/xdg-config")" "$(quote_unit "XDG_CACHE_HOME=$data/xdg-cache")"
   if (( port < 1024 )); then printf 'AmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE\n'; fi
   printf 'Restart=on-failure\nRestartSec=5\nTimeoutStopSec=20\nKillMode=control-group\nUMask=0077\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=read-only\nReadWritePaths=%s\nLimitNOFILE=4096\n[Install]\nWantedBy=multi-user.target\n' "$(quote_unit "$data")"
 } > "$work/new.service"
@@ -209,12 +223,7 @@ mv -Tf -- "$work/current" "$root/current"
 systemctl daemon-reload
 systemctl enable "$service" >/dev/null
 systemctl restart "$service"
-healthy=0
-for ((attempt=0; attempt<30; attempt++)); do
-  if systemctl is-active --quiet "$service" && curl -fsS --max-time 2 "http://127.0.0.1:$port/healthz" >/dev/null; then healthy=1; break; fi
-  sleep 1
-done
-(( healthy )) || { journalctl -u "$service" -n 30 --no-pager >&2; die '服务健康检查未通过。'; }
+wait_healthy "$port" || { journalctl -u "$service" -n 30 --no-pager >&2; die '服务健康检查未通过。'; }
 if command -v ufw >/dev/null && ufw status | grep -q 'Status: active'; then ufw allow "$port/tcp"; fi
 # Retain the active and previous release; only remove marked, managed commit directories.
 for candidate in "$root"/releases/*; do
