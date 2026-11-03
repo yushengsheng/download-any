@@ -4,8 +4,8 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const http = require("node:http");
 const { execFileSync } = require("node:child_process");
-const { projectDir, getDownloadDir } = require("../runtime");
-const { extractUrl, getVideoDetails, sanitizeFilename, saveVideo } = require("../download_douyin_core");
+const { projectDir, getDownloadDir, browserCandidates } = require("../runtime");
+const { extractUrl, getVideoDetails, extractEmbeddedDetails, sanitizeFilename, saveVideo } = require("../download_douyin_core");
 const { startServer } = require("../app");
 const { readDirectorySettings, getDownloadDir: savedDownloadDir, saveDownloadDir } = require("../settings");
 
@@ -168,6 +168,10 @@ test("用户的分享文案、搜索弹层地址和视频地址自动识别，�
   assert.equal(extractUrl(`[点击观看](${web.replaceAll("&", "\\&")})`), canonical);
   assert.equal(extractUrl(web.replaceAll("&", "&amp;")), canonical);
   assert.equal(extractUrl("https://www.iesdouyin.com/share/video/7667476840059096383/?region=CN"), canonical);
+  assert.equal(extractUrl("https://www.douyin.com/note/7667476840059096383"), canonical);
+  assert.equal(extractUrl("https://m.douyin.com/share/note/7667476840059096383?u_code=1"), canonical);
+  assert.equal(extractUrl("https://www.douyin.com/discover?vid=7667476840059096383"), canonical);
+  assert.equal(extractUrl("https://v.douyin.com/987Y-4zEs7w/?u_code=abc"), "https://v.douyin.com/987Y-4zEs7w/");
   assert.equal(extractUrl(`${canonical}?enter_from=search_result`), canonical);
   assert.equal(extractUrl("https://www.douyin.com/user/123?modal_id=7667476840059096383"), canonical);
   assert.throws(() => extractUrl("https://www.douyin.com/jingxuan/search/test?modal_id=invalid"), /视频编号/);
@@ -214,6 +218,17 @@ test("只接受目标作品的详情，候选地址去重、有上限且保留�
   assert.deepEqual(details.streams[0], { url: "https://example.com/same", br: 900 });
   aweme.video.bit_rate[1].play_addr.url_list = Array.from({ length: 200 }, (_, index) => `https://example.com/${index}`);
   assert.equal(getVideoDetails(aweme, aweme.aweme_id).streams.length, 64);
+  const ssrState = { loaderData: { video_page: { videoInfoRes: { item_list: [{
+    awemeId: "7667476840059096383", desc: "SSR内嵌作品",
+    video: { bitRateList: [{ bitRate: 1200, playAddr: [{ src: "https://example.com/ssr-high" }] }], playAddr: { urlList: ["https://example.com/ssr-fallback"] } }
+  }] } } } };
+  const embedded = extractEmbeddedDetails(ssrState, "7667476840059096383");
+  assert.equal(embedded?.title, "SSR内嵌作品");
+  assert.deepEqual(embedded?.streams, [{ url: "https://example.com/ssr-high", br: 1200 }, { url: "https://example.com/ssr-fallback", br: 0 }]);
+  assert.equal(extractEmbeddedDetails(ssrState, "999999"), null);
+  const firstBrowsers = browserCandidates();
+  const secondBrowsers = browserCandidates();
+  assert.deepEqual(secondBrowsers, firstBrowsers);
 });
 
 test("关闭服务会取消正在下载的任务并释放连接", async t => {
@@ -282,7 +297,7 @@ test("本地界面的任务接口完成实际保存、文件下载和失败提�
 
 test("项目复制到另一中文空格目录后，可从外部目录通过启动入口运行", { timeout: 120000 }, async t => {
   const directory = await temporary(t);
-  for (const file of ["start.js", "runtime.js", "settings.js", "folder-picker.js", "app.js", "server-auth.js", "server-config.js", "server-cache.js", "download.js", "video-input.js", "download_bilibili.js", "download-tools.js", "tools-manifest.json", "process-runner.js", "media-file.js", "media-toolbox.js", "download_douyin_core.js", "双击运行下载.cmd", "package.json"]) {
+  for (const file of ["start.js", "runtime.js", "settings.js", "folder-picker.js", "app.js", "server-auth.js", "server-config.js", "server-cache.js", "download.js", "video-input.js", "download_bilibili.js", "download_twitter.js", "download_youtube.js", "download_missav.js", "download-ytdlp.js", "download-tools.js", "tools-manifest.json", "process-runner.js", "media-file.js", "media-toolbox.js", "download_douyin_core.js", "双击运行下载.cmd", "package.json"]) {
     await fs.copyFile(path.join(projectDir, file), path.join(directory, file));
   }
   await fs.cp(path.join(projectDir, "node_modules"), path.join(directory, "node_modules"), { recursive: true });

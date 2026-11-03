@@ -56,7 +56,7 @@ test("密码使用 scrypt 保存，会话可过期和退出，错误尝试受到
   assert.ok(!JSON.stringify(value).includes(password));
   await assert.rejects(hashPassword("short"), /12/);
   let now = 1000;
-  const auth = createAuth(value, { secure: true, now: () => now, lifetimeMs: 1000, maxAttempts: 2 });
+  const auth = createAuth(value, { secure: true, now: () => now, lifetimeMs: 1000, maxAttempts: 2, maxTrackedIps: 3 });
   assert.equal((await auth.login("wrong", "client")).status, 401);
   assert.equal((await auth.login("wrong", "client")).status, 401);
   assert.equal((await auth.login(password, "client")).status, 429);
@@ -70,6 +70,11 @@ test("密码使用 scrypt 保存，会话可过期和退出，错误尝试受到
   auth.logout(next.cookie);
   assert.equal(auth.getSession(next.cookie), undefined);
   assert.equal(auth.getSession("download_any_session=malformed"), undefined);
+  // Locked IP ("client") should not be evicted by single-attempt noise when table reaches maxTrackedIps.
+  for (let index = 0; index < 5; index++) {
+    await auth.login("wrong", `noise-${index}`);
+  }
+  assert.equal((await auth.login(password, "client")).status, 429);
 });
 
 test("服务器配置记住密码哈希和参数，可从其他目录启动，重复配置不会重置密码", async t => {

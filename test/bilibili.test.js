@@ -35,9 +35,14 @@ test("同一输入自动识别两平台，清理 B 站分享和网页参数，�
   }
   assert.equal(parseInput(`${canonical}?p=2&spm_id_from=copy`).url, `${canonical}?p=2`);
   assert.equal(parseInput("https://m.bilibili.com/video/av123/?p=3").url, "https://www.bilibili.com/video/av123/?p=3");
+  assert.equal(parseInput("https://www.bilibili.com/video/AV123/?p=3").url, "https://www.bilibili.com/video/av123/?p=3");
+  assert.equal(parseInput("https://www.bilibili.com/festival/2026?bvid=BV1DzYy6FEqy&p=2").url, `${canonical}?p=2`);
   assert.equal(parseInput("https://b23.tv/AbCd123?share=copy").url, "https://b23.tv/AbCd123");
+  assert.equal(parseInput("https://bili2233.cn/AbCd123?share=copy").url, "https://bili2233.cn/AbCd123");
   assert.deepEqual(parseInput("https://v.douyin.com/987Y-4zEs7w/"), { platform: "douyin", url: "https://v.douyin.com/987Y-4zEs7w/" });
   assert.equal(parseInput("https://www.douyin.com/jingxuan/search/test?modal_id=7667476840059096383&type=general").url, "https://www.douyin.com/video/7667476840059096383");
+  assert.throws(() => parseInput("https://www.bilibili.com/bangumi/play/ep12345"), /暂不支持 B 站直播或番剧/);
+  assert.throws(() => parseInput("https://live.bilibili.com/12345"), /暂不支持 B 站直播或番剧/);
   for (const input of ["https://bilibili.com.evil.test/video/BV1DzYy6FEqy/", "https://example.com/", "https://www.bilibili.com/", `${canonical}?p=0`, `${canonical}?p=2oops`, "https://user:pass@www.bilibili.com/video/BV1DzYy6FEqy/", "https://www.bilibili.com:9000/video/BV1DzYy6FEqy/"]) assert.throws(() => parseInput(input));
 });
 
@@ -45,7 +50,8 @@ test("B 站短链接只跟随有限次跳转并要求最终指向具体 B 站视
   let count = 0;
   t.mock.method(global, "fetch", async () => { count++; return new Response(null, { status: 302, headers: { Location: `${canonical}?p=2&share=copy` } }); });
   assert.equal(await resolveVideoUrl("https://b23.tv/test"), `${canonical}?p=2`);
-  assert.equal(count, 1);
+  assert.equal(await resolveVideoUrl("https://bili2233.cn/test"), `${canonical}?p=2`);
+  assert.equal(count, 2);
   global.fetch.mock.mockImplementation(async () => new Response(null, { status: 302, headers: { Location: "https://b23.tv/loop" } }));
   await assert.rejects(resolveVideoUrl("https://b23.tv/test"), /跳转次数/);
   global.fetch.mock.mockImplementation(async () => new Response(null, { status: 302, headers: { Location: "https://example.com/private" } }));
@@ -90,6 +96,8 @@ test("统一下载入口调度 B 站，合并检查后发布，同名文件不�
   const args = tools.calls[0].args;
   assert.equal(args.at(-1), canonical);
   assert.ok(args.includes("--no-playlist") && args.includes("--ignore-config") && args.includes("--abort-on-unavailable-fragments"));
+  assert.ok(args.includes("Referer:https://www.bilibili.com/"));
+  assert.ok(args[args.indexOf("--format") + 1].endsWith("/bv*+ba/b"));
   assert.deepEqual((await fs.readdir(outputDir)).sort(), [first.filename, second.filename].sort());
 });
 

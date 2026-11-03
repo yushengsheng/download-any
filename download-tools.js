@@ -102,11 +102,12 @@ async function ensureTools(names, { signal, onLog = () => {} } = {}) {
 }
 
 async function ensureBilibiliTools(options = {}) {
-  const result = await ensureTools(["yt-dlp", "ffmpeg", "ffprobe"], options);
+  const result = await ensureDownloadTools(options);
   options.onLog?.("B 站下载工具已就绪。");
   return result;
 }
 
+function ensureDownloadTools(options) { return ensureTools(["yt-dlp", "ffmpeg", "ffprobe"], options); }
 function ensureMediaTools(options) { return ensureTools(["ffmpeg", "ffprobe"], options); }
 
-module.exports = { ensureBilibiliTools, ensureMediaTools, installAsset, findExecutable };
+module.exports = { ensureBilibiliTools, ensureDownloadTools, ensureMediaTools, installAsset, findExecutable };

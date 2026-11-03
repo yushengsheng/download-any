@@ -22,27 +22,28 @@ function extractUrl(text) {
   if (url.username || url.password || (url.port && !["80", "443"].includes(url.port))) throw new Error("视频链接格式不正确。");
   const videoId = getVideoId(url);
   if (videoId) return `https://www.douyin.com/video/${videoId}`;
-  if (["v.douyin.com", "vm.iesdouyin.com"].includes(url.hostname) && /^\/[^/]+\/?$/.test(url.pathname)) return url.href;
+  if (["v.douyin.com", "vm.iesdouyin.com"].includes(url.hostname) && /^\/[^/]+\/?$/.test(url.pathname)) return `${url.origin}${url.pathname}`;
   throw new Error("该网页链接没有包含视频编号，请打开具体视频后复制地址，或使用视频分享链接。");
 }
 
 function getVideoId(value) {
   const url = value instanceof URL ? value : new URL(value);
-  for (const key of ["modal_id", "aweme_id", "item_id"]) {
+  for (const key of ["modal_id", "aweme_id", "item_id", "vid"]) {
     const id = url.searchParams.get(key);
     if (id !== null) {
       if (!/^\d+$/.test(id)) throw new Error("视频编号格式不正确，请重新复制视频链接。");
       return id;
     }
   }
-  return url.pathname.match(/^\/(?:share\/|jingxuan\/)?video\/(\d+)(?:\/|$)/)?.[1] || null;
+  return url.pathname.match(/^\/(?:share\/|jingxuan\/)?(?:video|note)\/(\d+)(?:\/|$)/)?.[1] || null;
 }
 
 function getResponse(url, headers, signal, redirects = 0) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     if (!["http:", "https:"].includes(parsed.protocol)) return reject(new Error("视频地址协议不受支持。"));
-    const request = (parsed.protocol === "https:" ? https : http).get(parsed, { headers, signal }, response => {
+    // Each video transfer owns its socket, including errors during immediate cancellation.
+    const request = (parsed.protocol === "https:" ? https : http).get(parsed, { headers, signal, agent: false }, response => {
       response.on("error", reject);
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
@@ -115,13 +116,37 @@ function addStream(streams, url, br = 0) {
 }
 
 function getVideoDetails(aweme, videoId) {
-  if (!aweme || !videoId || String(aweme.aweme_id) !== videoId) return null;
+  const id = aweme?.aweme_id ?? aweme?.awemeId;
+  if (!aweme || !videoId || String(id) !== videoId) return null;
   const streams = new Map();
-  for (const rate of [...(aweme.video?.bit_rate || [])].sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0))) {
-    for (const address of rate.play_addr?.url_list || []) addStream(streams, address, rate.bit_rate || 0);
+  const video = aweme.video || {};
+  const bitRates = video.bit_rate || video.bitRateList || [];
+  for (const rate of [...bitRates].sort((a, b) => (b.bit_rate ?? b.bitRate ?? 0) - (a.bit_rate ?? a.bitRate ?? 0))) {
+    const playAddr = rate.play_addr || rate.playAddr;
+    const urls = playAddr?.url_list || playAddr?.urlList || (Array.isArray(playAddr) ? playAddr.map(item => item?.src || item) : []);
+    for (const address of urls) addStream(streams, address, rate.bit_rate ?? rate.bitRate ?? 0);
   }
-  for (const address of aweme.video?.play_addr?.url_list || []) addStream(streams, address);
+  const defaultAddr = video.play_addr || video.playAddr;
+  const defaultUrls = defaultAddr?.url_list || defaultAddr?.urlList || (Array.isArray(defaultAddr) ? defaultAddr.map(item => item?.src || item) : []);
+  for (const address of defaultUrls) addStream(streams, address);
   return { title: aweme.desc || "", streams: [...streams.values()] };
+}
+
+function extractEmbeddedDetails(root, videoId) {
+  if (!root || typeof root !== "object" || !videoId) return null;
+  const queue = [root];
+  const seen = new Set();
+  while (queue.length && seen.size < 2000) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
+    const details = getVideoDetails(current, videoId);
+    if (details?.streams.length) return details;
+    for (const value of Object.values(current)) {
+      if (value && typeof value === "object") queue.push(value);
+    }
+  }
+  return null;
 }
 
 async function downloadVideo(input, { outputDir = getDownloadDir(), onLog = console.log, onProgress, signal, maxBytes } = {}) {
@@ -143,6 +168,10 @@ async function downloadVideo(input, { outputDir = getDownloadDir(), onLog = cons
     signal?.throwIfAborted();
     onLog(`使用浏览器：${name}`);
     const context = await browser.newContext();
+    await context.route("**/*", route => {
+      if (["image", "font"].includes(route.request().resourceType())) return route.abort().catch(() => {});
+      return route.continue().catch(() => {});
+    });
     const page = await context.newPage();
     userAgent = await page.evaluate(() => navigator.userAgent);
     page.on("framenavigated", frame => {
@@ -154,6 +183,9 @@ async function downloadVideo(input, { outputDir = getDownloadDir(), onLog = cons
       if (url.includes("/aweme/v1/web/aweme/detail/") && !detailStreams.length && pending.size < 4) {
         const task = (async () => {
           try {
+            if (!videoId) {
+              try { videoId = getVideoId(url) || getVideoId(extractUrl(page.url())); } catch {}
+            }
             const details = getVideoDetails((await response.json())?.aweme_detail, videoId);
             if (details?.streams.length) {
               videoTitle = details.title;
@@ -169,7 +201,24 @@ async function downloadVideo(input, { outputDir = getDownloadDir(), onLog = cons
     try {
       await page.goto(targetUrl, { timeout: 30000, waitUntil: "domcontentloaded" });
     } catch (error) { signal?.throwIfAborted(); onLog(`页面加载提示：${error.message}`); }
-    await Promise.race([detailsReady, page.waitForTimeout(5000)]);
+    if (!videoId) {
+      try { videoId = getVideoId(extractUrl(page.url())); } catch {}
+    }
+    if (!detailStreams.length && videoId) {
+      const embedded = await page.evaluate(() => {
+        if (window._ROUTER_DATA && typeof window._ROUTER_DATA === "object") return window._ROUTER_DATA;
+        const render = document.querySelector("#RENDER_DATA")?.textContent;
+        if (render) { try { return JSON.parse(decodeURIComponent(render)); } catch {} }
+        return null;
+      }).catch(() => null);
+      const details = extractEmbeddedDetails(embedded, videoId);
+      if (details?.streams.length) {
+        videoTitle = details.title;
+        detailStreams = details.streams;
+        resolveDetails();
+      }
+    }
+    if (!detailStreams.length) await Promise.race([detailsReady, page.waitForTimeout(5000)]);
     await Promise.race([Promise.allSettled([...pending]), page.waitForTimeout(1500)]);
     signal?.throwIfAborted();
     if (!detailStreams.length) {
@@ -213,4 +262,4 @@ async function runCli(args = process.argv.slice(2)) {
 }
 
 if (require.main === module) runCli().catch(error => { console.error(`ERROR: ${error.message}`); process.exitCode = 1; });
-module.exports = { extractUrl, getVideoId, getVideoDetails, sanitizeFilename, saveVideo, downloadVideo, runCli };
+module.exports = { extractUrl, getVideoId, getVideoDetails, extractEmbeddedDetails, sanitizeFilename, saveVideo, downloadVideo, runCli };

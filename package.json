@@ -1,8 +1,8 @@
 {
   "name": "download-any",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "自动识别抖音和 B 站的本地视频下载工具",
+  "description": "自动识别抖音、B 站、推特、YouTube 和 MissAV 的本地视频下载工具",
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node start.js",

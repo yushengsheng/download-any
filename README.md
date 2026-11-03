@@ -1,6 +1,8 @@
-# Download Any · 抖音 / B 站视频下载
+# Download Any · 抖音 / B 站 / 推特 / YouTube / MissAV 视频下载
 
-支持 Windows、macOS 和 Linux 的本地视频下载工具。界面在本机浏览器中打开，视频直接保存到本机。**同一个输入框自动识别抖音或 B 站**，粘贴网址或整段分享文案后点击「开始下载」，不需要选择平台。
+支持 Windows、macOS 和 Linux 的本地视频下载工具。界面在本机浏览器中打开，视频直接保存到本机。**同一个输入框自动识别抖音、B 站、推特（X）、YouTube 和 MissAV**，粘贴具体视频网址或整段分享文案后点击「开始下载」，不需要选择平台。
+
+当前版本 **v0.3.0**，更新内容见 [更新记录](CHANGELOG.md)。
 
 另支持 [Linux 服务器一键部署](LINUX.md)：使用服务器 IP + 端口访问、密码登录。服务器临时处理，最终文件由浏览器保存到访问者设备。中间文件及时删除，结果全部传输后保留 5 分钟供重试，未下载的结果最长保留 2 小时；无需购买域名。
 
@@ -31,6 +33,10 @@ curl -fL --connect-timeout 20 --max-time 120 --retry 2 https://raw.githubusercon
 - 搜索结果、精选页或个人主页中打开视频后的网址：包含 `modal_id=视频编号` 的链接会自动转换为对应的视频网址。
 - B 站视频网址：`https://www.bilibili.com/video/BV…/` 或 `av…`，以及包含它的分享文案。
 - B 站短链接：`https://b23.tv/…`。分 P 视频保留 `p=2` 等参数；没有指定时下载第 1 P，不会自动下载整个合集。
+- 推特帖子：`https://x.com/用户名/status/帖子编号`，兼容 `twitter.com` 旧域名、`/video/1` 等视频序号，以及带 `a`、`s` 等分享参数的地址。指定序号时只下载该视频，未指定时下载帖子中的第一个视频。
+- 推特视频直链：`https://video.twimg.com/amplify_video/…/视频.mp4?tag=14`，也支持 `ext_tw_video`、`tweet_video` 下的 MP4；直链中的必要查询参数会保留。
+- YouTube：`https://www.youtube.com/watch?v=视频编号`、`https://youtu.be/视频编号`、手机网页、Shorts、嵌入地址和已结束的直播回放。带分享参数或同时包含合集参数时仍只下载该视频。
+- MissAV：`https://missav.ws/视频名称编号` 形式的具体播放页，兼容 `www.missav.ws`、`/en/` 等语言路径和分享参数。首页、频道、分类页不能作为单个视频下载。
 
 从聊天或网页复制时产生的 `https\://`、`www\.bilibili.com`、`\&` 和 `&amp;` 也会自动清理。去除追踪参数，保留视频定位信息。视频编号按字符串处理，BV 编号保留大小写。命令行和本地界面共用识别逻辑。
 
@@ -44,7 +50,7 @@ curl -fL --connect-timeout 20 --max-time 120 --retry 2 https://raw.githubusercon
 
 Windows 和 macOS 都通过同一个 `start.js` 启动，随后自动打开默认浏览器中的同一套网页 UI。macOS 的 `.app` 只是启动入口，下载、任务状态和目录处理均与 Windows 共用。
 
-首次启动会自动安装项目依赖，需要联网。解析抖音时优先使用本机 Chrome、Edge 或 Chromium，未找到时才按需安装 Chromium，不额外下载独立的 headless shell。视频工具箱与 B 站下载不需要安装解析浏览器。Linux 如果缺少浏览器系统库，可执行 `npx playwright-core install --with-deps --no-shell chromium`。
+首次启动会自动安装项目依赖，需要联网。解析抖音或 MissAV 时优先使用本机 Chrome、Edge 或 Chromium，未找到时才按需安装 Chromium，不额外下载独立的 headless shell。视频工具箱、B 站、推特与 YouTube 下载不需要安装解析浏览器。Linux 如果缺少浏览器系统库，可执行 `npx playwright-core install --with-deps --no-shell chromium`。
 
 启动后会自动打开本地界面，粘贴链接并点击「开始下载」。运行期间保留启动窗口，按 `Ctrl+C` 退出。浏览器没有自动打开时，访问启动窗口显示的 `http://127.0.0.1:端口` 地址即可；端口自动分配，不与其他程序争用。
 
@@ -65,6 +71,9 @@ Windows 和 macOS 都通过同一个 `start.js` 启动，随后自动打开默�
 ```sh
 npm run download -- "https://www.douyin.com/video/视频编号"
 npm run download -- "https://www.bilibili.com/video/BV1DzYy6FEqy/"
+npm run download -- "https://x.com/用户名/status/帖子编号"
+npm run download -- "https://youtu.be/视频编号"
+npm run download -- "https://missav.ws/视频名称编号"
 npm run download -- "手机复制的整段分享文案" --output "我的视频"
 ```
 
@@ -93,6 +102,20 @@ B 站采用 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 解析和下载，使用 
 
 yt-dlp 及 FFmpeg 的发行许可和来源见 [THIRD_PARTY.md](THIRD_PARTY.md)。工具安装和下载都有超时、有限重试和大小上限；退出时终止下载进程树，清理未完成的临时目录。B 站下载进程上限为 2 小时，单路流上限 20 GiB。下载记录只保留本次启动的任务。
 
+## 推特（X）下载
+
+帖子链接优先复用 yt-dlp 解析；无法取得视频时，通过 [FxTwitter](https://github.com/FixTweet/FxTwitter) 的公开 API 备用查询，查询中会向该服务发送帖子编号。备用查询核对返回的帖子编号，只从该帖子的媒体列表选择目标视频，拒绝引用帖子和站外视频地址。不会读取浏览器 Cookie，不需要额外的 npm 依赖。备用解析依赖 FxTwitter 的可用性，不能保证私密、删除或要求登录的帖子可下载。
+
+视频直接从 `video.twimg.com` 下载，优先选择较高清晰度的 MP4。粘贴 MP4 直链时，跳过帖子解析和 yt-dlp，仅按需准备媒体校验工具。下载完成后检查画面轨道和时长，再发布文件；支持本身没有音轨的无声视频。失败、取消或文件不完整时清理中间文件，同名结果不覆盖。与其他平台共用保存目录、任务并发限制和取消功能，服务器版仍由浏览器保存到访问者设备。
+
+## YouTube 与 MissAV
+
+两个平台都自动识别为独立平台，与其他平台共用输入框、保存目录、任务并发限制和取消操作。复制产生的 `https\://`、`www\.`、`\&` 会自动清理。网站首页和合集地址不会触发整站或批量下载；不能保证所有视频可下载，需要登录、会员、地区许可、网站验证或 DRM 的内容可能失败，正在进行的直播会提示等待结束。
+
+YouTube 复用 yt-dlp 和 FFmpeg，显式使用当前启动程序的 Node.js 解析播放器，不额外安装 JavaScript 运行时，不自动联网更新解析组件。优先下载兼容的 H.264 / AAC，合并为 MP4 并验证音视频轨道、时长和文件大小后才算成功。普通长链接与 `youtu.be` 短链接会归一为同一视频，去除分享、合集和时间定位参数。
+
+MissAV 仅从匹配目标编号的主播放器提取媒体地址，忽略推荐和预览。为兼容网站验证，本地有桌面环境时会按需打开独立的浏览器窗口解析，完成后立即关闭；该窗口使用临时会话，不读取现有浏览器 Cookie。下载进程复用 yt-dlp / FFmpeg 处理 HLS 分片并输出 MP4，检查完整性后发布。服务器模式和无桌面 Linux 使用无界面解析，可能被网站验证拦截；这种情况会报告失败，不会误选其他视频或保存为成功结果。当前适配 `missav.ws` 页面结构及其 `surrit.com` 主视频源，页面或 CDN 变更时可能需要更新适配。
+
 ## 视频工具箱：音画分离
 
 在顶部切换到「视频工具箱」，点击「选择视频」或粘贴本地文件的完整路径，再点击「开始分离」。Windows 与 macOS 使用系统文件选择框；Linux 可直接输入路径。选择的文件直接在本机读取处理，无需上传或复制一份源视频。
@@ -120,7 +143,8 @@ FFmpeg 根据文件内容识别格式，不单靠后缀判断。已实际测试 
 - `server-auth.js`、`server-config.js`、`server-cache.js`：服务器登录、配置、流式上传及临时缓存。
 - `deploy-linux.sh`、`LINUX.md`：Linux 部署、升级与服务器使用说明。
 - `video-input.js`、`download.js`：统一链接识别、平台调度和命令行入口。
-- `download_douyin_core.js`、`download_bilibili.js`：抖音与 B 站下载实现。
+- `download_douyin_core.js`、`download_bilibili.js`、`download_twitter.js`、`download_youtube.js`、`download_missav.js`：各平台下载与解析实现。
+- `download-ytdlp.js`：B 站、YouTube 和 MissAV 共用的下载、合并、完整性检查与临时文件清理。
 - `media-toolbox.js`：本地音画分离、输出格式匹配和双文件校验。
 - `media-file.js`：安全文件名和防覆盖发布，下载与工具箱共用。
 - `download-tools.js`、`tools-manifest.json`、`process-runner.js`：按需安装与校验外部工具、受控子进程。

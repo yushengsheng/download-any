@@ -1,12 +1,16 @@
 const { parseInput, platformNames } = require("./video-input");
 const { downloadVideo: downloadDouyin } = require("./download_douyin_core");
 const { downloadBilibili } = require("./download_bilibili");
+const { downloadTwitter } = require("./download_twitter");
+const { downloadYoutube } = require("./download_youtube");
+const { downloadMissav } = require("./download_missav");
 const { getDownloadDir } = require("./runtime");
 
 async function downloadVideo(input, options = {}) {
   const target = parseInput(input);
   (options.onLog || console.log)(`已识别平台：${platformNames[target.platform]}`);
-  return (target.platform === "bilibili" ? downloadBilibili : downloadDouyin)(target.url, options);
+  const download = { douyin: downloadDouyin, bilibili: downloadBilibili, twitter: downloadTwitter, youtube: downloadYoutube, missav: downloadMissav }[target.platform];
+  return download(target.url, options);
 }
 
 async function runCli(args = process.argv.slice(2)) {
@@ -17,7 +21,7 @@ async function runCli(args = process.argv.slice(2)) {
       if (!args[index + 1] || args[index + 1].startsWith("--")) throw new Error("--output 后需要提供保存目录。");
       outputDir = getDownloadDir(args[++index]);
     } else if (["--help", "-h"].includes(args[index])) {
-      console.log('用法：npm run download -- "抖音 / B 站链接或分享文案" [--output 保存目录]');
+      console.log('用法：npm run download -- "抖音 / B 站 / 推特 / YouTube / MissAV 视频链接或分享文案" [--output 保存目录]');
       return;
     } else input.push(args[index]);
   }

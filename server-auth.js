@@ -14,7 +14,7 @@ function validateCredentials(value) {
   if (value?.algorithm !== "scrypt" || !/^[a-f0-9]{32}$/.test(value.salt) || !/^[a-f0-9]{64}$/.test(value.hash)) throw new Error("服务器密码配置无效，请重新设置访问密码。");
 }
 
-function createAuth(credentials, { secure = false, now = Date.now, lifetimeMs = 12 * 3600000, maxAttempts = 6 } = {}) {
+function createAuth(credentials, { secure = false, now = Date.now, lifetimeMs = 12 * 3600000, maxAttempts = 6, maxTrackedIps = 512 } = {}) {
   validateCredentials(credentials);
   const sessions = new Map();
   const attempts = new Map();
@@ -40,8 +40,15 @@ function createAuth(credentials, { secure = false, now = Date.now, lifetimeMs = 
     const key = String(address).slice(0, 128);
     const previous = attempts.get(key) || { count: 0, until: now() + 15 * 60000 };
     if (checking >= 2 || previous.count >= maxAttempts || globalAttempts.length >= 30) return { status: 429, error: "尝试次数过多，请稍后再试。" };
-    if (attempts.size >= 512 && !attempts.has(key)) attempts.delete(attempts.keys().next().value);
+    if (attempts.size >= maxTrackedIps && !attempts.has(key)) {
+      let evictKey;
+      for (const [candidateKey, candidateValue] of attempts) {
+        if (candidateValue.count < maxAttempts) { evictKey = candidateKey; break; }
+      }
+      attempts.delete(evictKey ?? attempts.keys().next().value);
+    }
     previous.count++;
+    if (previous.count >= maxAttempts) previous.until = now() + 15 * 60000;
     attempts.set(key, previous);
     globalAttempts.push(now());
     checking++;

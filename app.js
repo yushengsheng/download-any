@@ -43,7 +43,7 @@ async function startServer({ outputDir, settingsFile = defaultSettingsFile, down
   catch { directoryError = "保存目录不可用，请重新选择可写的文件夹。"; }
   const token = randomBytes(24).toString("hex");
   const jobs = [];
-  const browsers = browserCandidates().map(item => item.name);
+  let browsers = browserCandidates().map(item => item.name);
   const files = {
     "/": ["index.html", "text/html; charset=utf-8"],
     "/toolbox": ["index.html", "text/html; charset=utf-8"],
@@ -87,7 +87,7 @@ async function startServer({ outputDir, settingsFile = defaultSettingsFile, down
       const result = await operation({
         outputDir: config ? path.join(config.directory, "results") : jobOutputDir,
         sourceDir: config ? path.join(config.directory, "input") : undefined,
-        maxBytes: config?.maxBytes, signal: controller.signal,
+        maxBytes: config?.maxBytes, signal: controller.signal, headless: serverMode ? true : undefined,
         onLog: message => { job.logs.push(String(message).slice(0, 2000)); if (job.logs.length > 100) job.logs.shift(); },
         onProgress: progress => { job.progress = progress; }
       });
@@ -139,6 +139,7 @@ async function startServer({ outputDir, settingsFile = defaultSettingsFile, down
       }
       if (request.method === "GET" && url.pathname === "/api/state") {
         await sweep();
+        if (!browsers.length) browsers = browserCandidates().map(item => item.name);
         return json(response, 200, { token: session?.token || token, serverMode: Boolean(serverMode),
           outputDir: serverMode ? undefined : outputDir, defaultDir: serverMode ? undefined : defaultDir,
           retentionMs: serverMode?.retentionMs, downloadedRetentionMs: cache?.downloadedRetentionMs, maxUploadBytes: serverMode?.maxFileBytes,

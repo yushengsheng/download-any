@@ -80,7 +80,7 @@ function renderJobs(jobs) {
   for (const job of jobs) {
     const card = element("article", undefined, "job");
     const heading = element("div", undefined, "job-heading");
-    const platform = { douyin: "抖音", bilibili: "B 站" }[job.platform];
+    const platform = { douyin: "抖音", bilibili: "B 站", twitter: "推特", youtube: "YouTube", missav: "MissAV" }[job.platform];
     heading.append(element("span", `${platform ? `${platform} · ` : ""}${job.sourceName || job.result?.filename || job.url}`, "job-title"));
     heading.append(element("span", { running: isToolbox ? "处理中" : "下载中", completed: "已完成", failed: "未完成", cancelled: "已取消", expired: "已清理" }[job.status], `badge ${job.status}`));
     card.append(heading);
@@ -165,7 +165,7 @@ async function refreshState() {
     const directoryStatus = document.querySelector("#directory-status");
     directoryStatus.textContent = state.directoryError || state.directoryWarning || (serverMode ? `结果最长保留 ${state.retentionMs / 3600000} 小时，全部传输后 ${state.downloadedRetentionMs / 60000} 分钟清理。可在浏览器设置中开启“下载前询问保存位置”。` : "自动记住保存位置，下次打开继续使用。");
     directoryStatus.classList.toggle("error", directoryUnavailable);
-    document.querySelector("#browser-info").textContent = isToolbox ? "音画分离 · 保留原始质量" : state.browsers[0] || "解析浏览器将在下载抖音时按需安装";
+    document.querySelector("#browser-info").textContent = isToolbox ? "音画分离 · 保留原始质量" : state.browsers[0] || "解析浏览器将在需要时按需安装";
     folder.disabled = directoryUnavailable;
     renderJobs(state.jobs);
     for (const job of state.jobs) {

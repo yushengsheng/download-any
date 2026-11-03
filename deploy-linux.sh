@@ -64,8 +64,10 @@ if (( ! has_password )) && [[ ! -f $requested/data/server.json ]]; then
   die '首次部署必须填写自定义密码，不再自动生成随机密码。'
 fi
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y --no-install-recommends ca-certificates curl git xz-utils util-linux ffmpeg
+if ! command -v curl >/dev/null || ! command -v git >/dev/null || ! command -v xz >/dev/null || ! command -v flock >/dev/null || ! command -v ffmpeg >/dev/null || [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
+  apt-get update -qq
+  apt-get install -y --no-install-recommends ca-certificates curl git xz-utils util-linux ffmpeg
+fi
 git check-ref-format --branch "$branch" >/dev/null || die 'BRANCH 无效。'
 mkdir -p -- "$requested"
 root=$(realpath -- "$requested")

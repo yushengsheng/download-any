@@ -6,7 +6,23 @@ const { getDownloadDir } = require("./settings");
 const { runProcess } = require("./process-runner");
 const projectDir = __dirname;
 
-function browserCandidates({ platform = process.platform, env = process.env, home = os.homedir() } = {}) {
+let cachedBrowsers;
+
+function isExecutable(file) {
+  try {
+    fs.accessSync(file, fs.constants.R_OK | fs.constants.X_OK);
+    return fs.statSync(file).isFile();
+  } catch { return false; }
+}
+
+function browserCandidates({ platform = process.platform, env = process.env, home = os.homedir(), refresh = false } = {}) {
+  const defaultCall = platform === process.platform && env === process.env && home === os.homedir();
+  const cacheKey = `${platform}\0${env.BROWSER_PATH || ""}\0${env.PLAYWRIGHT_BROWSERS_PATH || ""}\0${home}`;
+  if (defaultCall && !refresh && cachedBrowsers?.key === cacheKey
+    && cachedBrowsers.items.length > 0
+    && cachedBrowsers.items.every(item => isExecutable(item.executablePath))) {
+    return cachedBrowsers.items.map(item => ({ ...item }));
+  }
   const candidates = [];
   const add = (name, executablePath) => { if (executablePath) candidates.push({ name, executablePath }); };
   add("自定义浏览器", env.BROWSER_PATH && path.resolve(projectDir, env.BROWSER_PATH));
@@ -30,32 +46,51 @@ function browserCandidates({ platform = process.platform, env = process.env, hom
     }
   }
   try { add("Playwright Chromium", require("playwright-core").chromium.executablePath()); } catch {}
-  return candidates.filter((candidate, index, all) => fs.existsSync(candidate.executablePath)
+  const items = candidates.filter((candidate, index, all) => isExecutable(candidate.executablePath)
     && all.findIndex(item => item.executablePath === candidate.executablePath) === index);
+  if (defaultCall) cachedBrowsers = { key: cacheKey, items };
+  return items.map(item => ({ ...item }));
 }
 
-async function launchBrowser({ signal, onLog = console.log } = {}) {
+async function installChromium({ signal, onLog = console.log } = {}) {
+  onLog("解析视频需要浏览器，正在安装 Chromium（需要联网）……");
+  const cli = path.join(path.dirname(require.resolve("playwright-core/package.json")), "cli.js");
+  try {
+    await runProcess(process.execPath, [cli, "install", "chromium", "--no-shell"], {
+      cwd: projectDir, signal, timeoutMs: 300000, capture: false, onLine: line => onLog(line.slice(0, 1200))
+    });
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw new Error(`Chromium 安装失败，请检查网络或安装 Chrome / Edge。${error.message}`);
+  }
+  return browserCandidates({ refresh: true });
+}
+
+async function launchBrowser({ signal, onLog = console.log, headless = true } = {}) {
   const { chromium } = require("playwright-core");
   signal?.throwIfAborted();
-  if (!browserCandidates().length) {
-    onLog("解析抖音需要浏览器，正在安装 Chromium（需要联网）……");
-    const cli = path.join(path.dirname(require.resolve("playwright-core/package.json")), "cli.js");
-    try {
-      await runProcess(process.execPath, [cli, "install", "chromium", "--no-shell"], {
-        cwd: projectDir, signal, timeoutMs: 300000, capture: false, onLine: line => onLog(line.slice(0, 1200))
-      });
-    } catch (error) {
-      signal?.throwIfAborted();
-      throw new Error(`Chromium 安装失败，请检查网络或安装 Chrome / Edge。${error.message}`);
-    }
+  let candidates = browserCandidates();
+  let installed = false;
+  if (!candidates.length) {
+    candidates = await installChromium({ signal, onLog });
+    installed = true;
   }
   signal?.throwIfAborted();
   const errors = [];
-  for (const candidate of browserCandidates()) {
+  for (const candidate of candidates) {
     try {
-      const browser = await chromium.launch({ executablePath: candidate.executablePath, headless: true, handleSIGINT: false, handleSIGTERM: false });
+      const browser = await chromium.launch({ executablePath: candidate.executablePath, headless, handleSIGINT: false, handleSIGTERM: false });
       return { browser, name: candidate.name };
     } catch (error) { errors.push(`${candidate.name}: ${error.message}`); }
+  }
+  if (!installed && !process.env.BROWSER_PATH && !candidates.some(item => item.name === "Playwright Chromium")) {
+    for (const candidate of await installChromium({ signal, onLog })) {
+      if (candidate.name !== "Playwright Chromium") continue;
+      try {
+        const browser = await chromium.launch({ executablePath: candidate.executablePath, headless, handleSIGINT: false, handleSIGTERM: false });
+        return { browser, name: candidate.name };
+      } catch (error) { errors.push(`${candidate.name}: ${error.message}`); }
+    }
   }
   throw new Error(errors.length
     ? `浏览器启动失败，请用 BROWSER_PATH 指定可用的 Chromium 浏览器。\n${errors.join("\n")}`
