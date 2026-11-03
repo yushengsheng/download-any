@@ -22,6 +22,15 @@ jobs:
           cache: npm
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg shellcheck
       - run: npm ci --no-audit --no-fund
+      - name: Prepare verified tools for full HLS integration test
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          require('./download-tools').ensureBilibiliTools({ onLog: console.log }).then(tools => {
+            fs.appendFileSync(process.env.GITHUB_ENV,
+              `YTDLP_PATH=${tools.ytDlp}\nFFMPEG_PATH=${tools.ffmpeg}\nFFPROBE_PATH=${tools.ffprobe}\n`);
+          }).catch(error => { console.error(error.message); process.exitCode = 1; });
+          NODE
       - run: node node_modules/playwright-core/cli.js install --with-deps chromium --no-shell
       - run: bash -n deploy-linux.sh
       - run: shellcheck deploy-linux.sh launch.sh download_douyin.sh 双击运行下载.command 抖音视频下载.app/Contents/MacOS/applet
